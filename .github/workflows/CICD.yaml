@@ -11,6 +11,7 @@ env:
   ECS_CLUSTER: dev-cluster
   ECS_SERVICE: dev-service
   TASK_DEFINITION: dev-task
+  CONTAINER_APP: dev-app
 
 jobs:
   build-and-push:
@@ -86,18 +87,19 @@ jobs:
         run: |
           aws ecs describe-task-definition --task-definition ${{ env.TASK_DEFINITION }} > task-definition.json
 
-      # Update the Task Definition with the latest images
-      - name: Update task definition
-        run: |
-          cat task-definition.json | jq '.taskDefinition.containerDefinitions[0].image = "${{ steps.build-image.outputs.image }}"' > final-task-definition.json
-          cat final-task-definition.json
+      - name: Fill in the new image ID in the Amazon ECS task definition
+        id: task-app
+        uses: aws-actions/amazon-ecs-render-task-definition@v1
+        with:
+          task-definition: task-definition.json
+          container-name: ${{ env.CONTAINER_APP }}
+          image: ${{ steps.build-image.outputs.image }}
 
-      # Register the new Task Definition
-      - name: Register task definition
-        run: |
-          aws ecs register-task-definition --cli-input-json file://final-task-definition.json
-
-      # Update the ECS Service to use the new Task Definition
-      - name: Update ECS service
-        run: |
-          aws ecs update-service --cluster ${{ env.ECS_CLUSTER }} --service ${{ env.ECS_SERVICE }} --force-new-deployment
+      - name: Deploy Amazon ECS task definition
+        uses: aws-actions/amazon-ecs-deploy-task-definition@v1
+        with:
+          role-to-assume: ${{ secrets.IAM_ROLE }}
+          task-definition: ${{ steps.task-app.outputs.task-definition }}
+          service: ${{ env.ECS_SERVICE }}
+          cluster: ${{ env.ECS_CLUSTER }}
+          wait-for-service-stability: true
