@@ -1,0 +1,90 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches:
+      - main # Trigger pipeline when push code to branch `main`
+
+env:
+  AWS_REGION: ap-southeast-1
+  ECR_REPOSITORY_APP: dev-app
+  ECS_CLUSTER: dev-cluster
+  ECS_SERVICE: dev-service
+  TASK_DEFINITION: task-definition.json
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    environment: dev
+
+    steps:
+      # Check out code from the GitHub repository
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      # Configure AWS credentials
+      - name: Configure AWS credentials from account
+        uses: aws-actions/configure-aws-credentials@v3
+        with:
+          role-to-assume: ${{ secrets.IAM_ROLE }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      # Log in to Amazon ECR
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v1
+
+      # install Poetry
+      - name: Set up Poetry
+        run: |
+          curl -sSL https://install.python-poetry.org | python3 -
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+
+      # Install dependencies and run tests
+      - name: Install dependencies and run tests
+        run: |
+          poetry install --no-root
+          poetry run pytest # run tests with pytest
+
+      # Build and push Docker image for the application
+      - name: Build and push app image
+        run: |
+          docker build -t ${{ env.ECR_REPOSITORY_APP }}:latest -f .
+          docker tag ${{ env.ECR_REPOSITORY_APP }}:latest ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY_APP }}:latest
+          docker push ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY_APP }}:latest
+
+  deploy:
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    environment: dev
+
+    steps:
+      # Check out code from the GitHub repository
+      - name: Checkout code
+        uses: actions/checkout@v3
+        
+      - name: Configure AWS credentials from account
+        uses: aws-actions/configure-aws-credentials@v3
+        with:
+          role-to-assume: ${{ secrets.IAM_ROLE }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      # Get the current Task Definition
+      - name: Download task definition
+        run: |
+          aws ecs describe-task-definition --task-definition ${{ env.TASK_DEFINITION }} > task-definition.json
+
+      # Update the Task Definition with the latest images
+      - name: Update task definition
+        run: |
+          cat task-definition.json | jq '.taskDefinition.containerDefinitions[0].image = "${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY_APP }}:latest"' > final-task-definition.json
+
+      # Register the new Task Definition
+      - name: Register task definition
+        run: |
+          aws ecs register-task-definition --cli-input-json file://final-task-definition.json
+
+      # Update the ECS Service to use the new Task Definition
+      - name: Update ECS service
+        run: |
+          aws ecs update-service --cluster ${{ env.ECS_CLUSTER }} --service ${{ env.ECS_SERVICE }} --force-new-deployment
