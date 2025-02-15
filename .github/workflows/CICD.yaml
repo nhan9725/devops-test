@@ -52,9 +52,8 @@ jobs:
       # Install dependencies and run tests
       - name: Install dependencies and run tests
         run: |
-          poetry install --no-root
-          poetry run pytest # run tests with pytest
-
+          poetry install --no-root 
+          poetry run pytest 
       # Build and push Docker image for the application
       - name: Build and push app image
         run: |
