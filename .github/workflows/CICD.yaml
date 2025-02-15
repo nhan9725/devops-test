@@ -89,6 +89,7 @@ jobs:
       - name: Update task definition
         run: |
           cat task-definition.json | jq '.taskDefinition.containerDefinitions[0].image = "${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY_APP }}:latest"' > final-task-definition.json
+          cat final-task-definition.json
 
       # Register the new Task Definition
       - name: Register task definition
