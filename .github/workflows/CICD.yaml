@@ -56,9 +56,11 @@ jobs:
           poetry run pytest 
       # Build and push Docker image for the application
       - name: Build and push app image
+        id: build-image
         run: |
           docker build -t ${{ env.ECR_REPOSITORY_APP }}:latest .
-          docker push ${{ env.ECR_REPOSITORY_APP }}:latest          
+          docker push ${{ env.ECR_REPOSITORY_APP }}:latest  
+          echo image=${{ env.ECR_REPOSITORY_APP }}:latest   >> $GITHUB_OUTPUT        
 
   deploy:
     needs: build-and-push
@@ -87,7 +89,7 @@ jobs:
       # Update the Task Definition with the latest images
       - name: Update task definition
         run: |
-          cat task-definition.json | jq '.taskDefinition.containerDefinitions[0].image = "${{ env.ECR_REPOSITORY_APP }}:latest"' > final-task-definition.json
+          cat task-definition.json | jq '.taskDefinition.containerDefinitions[0].image = "${{ steps.build-image.outputs.image }}"' > final-task-definition.json
           cat final-task-definition.json
 
       # Register the new Task Definition
