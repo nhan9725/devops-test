@@ -16,6 +16,9 @@ jobs:
   build-and-push:
     runs-on: ubuntu-latest
     environment: dev
+    permissions:
+      id-token: write
+      contents: read
 
     steps:
       # Check out code from the GitHub repository
