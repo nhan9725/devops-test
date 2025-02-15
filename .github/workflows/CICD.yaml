@@ -85,7 +85,13 @@ jobs:
       # Get the current Task Definition
       - name: Download task definition
         run: |
-          aws ecs describe-task-definition --task-definition ${{ env.TASK_DEFINITION }} > task-definition.json
+          aws ecs describe-task-definition --task-definition ${{ env.TASK_DEFINITION }} > task-definition-full.json
+          cat task-definition-full.json | jq '.taskDefinition' > task-definition.json
+
+      # Debug: Show the filtered Task Definition
+      - name: Debug - Show filtered task definition
+        run: |
+          cat task-definition.json
 
       - name: Fill in the new image ID in the Amazon ECS task definition
         id: task-app
