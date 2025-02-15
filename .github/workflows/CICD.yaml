@@ -10,7 +10,7 @@ env:
   ECR_REPOSITORY_APP: dev-app
   ECS_CLUSTER: dev-cluster
   ECS_SERVICE: dev-service
-  TASK_DEFINITION: task-definition.json
+  TASK_DEFINITION: dev-task
 
 jobs:
   build-and-push:
